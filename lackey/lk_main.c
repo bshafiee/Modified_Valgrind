@@ -219,6 +219,7 @@ typedef
 static VgHashTable tableLoad;
 static VgHashTable tableStore;
 static VgHashTable tableModify;
+static unsigned int cache_line_size = 1;
 
 static CountNode* new_CountNode ( void )
 {
@@ -521,6 +522,7 @@ static Int   events_used = 0;
 
 static void add_load_node(Addr addr)
 {
+    addr /= cache_line_size;
     CountNode *existing = (CountNode*)VG_(HT_lookup) (tableLoad,addr);
     if(existing == NULL)
     {
@@ -553,7 +555,8 @@ static void add_load_node(Addr addr)
 
 static void add_store_node(Addr addr)
 {
-    CountNode *existing = (CountNode*)VG_(HT_lookup) (tableStore,addr);
+   addr /= cache_line_size;
+   CountNode *existing = (CountNode*)VG_(HT_lookup) (tableStore,addr);
     if(existing == NULL)
     {
         CountNode* node = new_CountNode();
@@ -585,7 +588,8 @@ static void add_store_node(Addr addr)
 
 static void add_modify_node(Addr addr)
 {
-    CountNode *existing = (CountNode*)VG_(HT_lookup) (tableModify,addr);
+   addr /= cache_line_size;
+   CountNode *existing = (CountNode*)VG_(HT_lookup) (tableModify,addr);
     if(existing == NULL)
     {
         CountNode* node = new_CountNode();
@@ -1266,8 +1270,36 @@ static void lk_fini(Int exitcode)
     VG_(HT_destruct) ( tableStore, freenode_function );
 }
 
+static int parseInt(char *input,int len)
+{
+   int sum = 0;
+   int i;
+   for(i=0;i<len-1;i++)
+   {
+      int digit = input[i]-'0';
+      sum = sum*10+digit;
+   }
+   return sum;
+}
+
+static unsigned int getCachlineSize()
+{
+   int fd = 0;
+   fd = VG_(fd_open)("/sys/devices/system/cpu/cpu0/cache/index0/coherency_line_size",VKI_O_RDONLY, 0);
+   unsigned int size = 0;
+   if (fd > 0) {
+      int len = 1000;
+      char buff[len];
+      int read = VG_(read)   (fd, buff, len);
+      size = parseInt(buff,read);
+      VG_(close)(fd );
+   }
+   return size;
+}
+
 static void lk_pre_clo_init(void)
 {
+   cache_line_size = getCachlineSize();
    lk_hash_init();
 
    VG_(details_name)            ("Lackey");

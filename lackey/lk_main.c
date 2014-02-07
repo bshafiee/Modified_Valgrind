@@ -220,6 +220,7 @@ static VgHashTable tableLoad;
 static VgHashTable tableStore;
 static VgHashTable tableModify;
 static unsigned int cache_line_size = 1;
+static unsigned long global_counter = 0;
 
 static CountNode* new_CountNode ( void )
 {
@@ -628,18 +629,21 @@ static VG_REGPARM(2) void trace_load(Addr addr, SizeT size)
 {
    //VG_(printf)(" L %08lx,%lu\n", addr, size);
     add_load_node(addr);
+    global_counter++;
 }
 
 static VG_REGPARM(2) void trace_store(Addr addr, SizeT size)
 {
    //VG_(printf)(" S %08lx,%lu\n", addr, size);
     add_store_node(addr);
+    global_counter++;
 }
 
 static VG_REGPARM(2) void trace_modify(Addr addr, SizeT size)
 {
    //VG_(printf)(" M %08lx,%lu\n", addr, size);
     add_modify_node(addr);
+    global_counter++;
 }
 
 
@@ -1162,6 +1166,26 @@ IRSB* lk_instrument ( VgCallbackClosure* closure,
 
    return sbOut;
 }
+static void lk_write_global(const char* path)
+{
+    int fd;
+    SysRes res;
+    res = VG_(open) (path, VKI_O_CREAT|VKI_O_WRONLY|VKI_O_TRUNC, 0);
+    if (sr_isError(res))
+    {
+            VG_(printf)("Error opening file!\n");
+            return;
+    }
+    fd = (int) sr_Res(res);
+
+    
+    char buffer [1000];
+    int cx = VG_(snprintf)(buffer, 1000, "%lu\n",global_counter);
+    VG_(write)  (fd, buffer,cx);
+
+    //Close file
+    VG_(close)(fd);
+}
 
 static void lk_write_results(VgHashTable table,const char* path)
 {
@@ -1259,6 +1283,13 @@ static void lk_fini(Int exitcode)
     lk_write_results(tableStore,fileName);
     VG_(snprintf)(fileName,1000,"%s%s_modify.csv",clo_output_dir,clo_program_name);
     lk_write_results(tableModify,fileName);
+
+    VG_(snprintf)(fileName,1000,"%s%s_global.csv",clo_output_dir,clo_program_name);
+    lk_write_global(fileName);
+
+
+
+
 
     //CLEANUP allocated memory by the hashtable
     //Report Size

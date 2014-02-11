@@ -1299,6 +1299,7 @@ static void lk_fini(Int exitcode)
     VG_(HT_destruct) ( tableLoad, freenode_function );
     VG_(HT_destruct) ( tableModify, freenode_function );
     VG_(HT_destruct) ( tableStore, freenode_function );
+    VG_(printf)("\nTOTAL INSTRUCTIONS:%lu\n",global_counter);
 }
 
 static int parseInt(char *input,int len)
